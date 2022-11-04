@@ -1,0 +1,62 @@
+--Looking at the Total cases vs Total_deaths
+SELECT Continent, Location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 as Percentage
+FROM Covid19.CovidDeaths
+ORDER BY 1,2
+
+--Looking at the Total cases vs Population
+SELECT Location, date, population, total_cases,  (total_cases/population)*100 as Percentage
+FROM Covid19.CovidDeaths
+ORDER BY 1,2
+
+--Looking at country with highest infection rate compared to population
+SELECT Continent, Location, population, MAX(total_cases) AS HighestInfectionCount, MAX((total_cases/population))*100 as PercentPopulationInfected
+FROM Covid19.CovidDeaths
+WHERE Continent is not null
+GROUP BY Continent, Location, Population
+ORDER BY PercentPopulationInfected desc
+
+--Looking at death by continents
+SELECT Location, MAX(CAST(total_deaths AS int)) AS TotalDeathCount
+FROM Covid19.CovidDeaths
+WHERE continent is null
+GROUP BY Location
+ORDER BY TotalDeathCount desc
+
+--Looking at Global death percentage
+SELECT SUM(new_cases) as total_cases, SUM(cast(new_deaths as int)) as total_deaths, SUM(cast(new_deaths as int))/SUM(new_cases)*100 as DeathPercentage
+FROM `portfolio-367516.Covid19.CovidDeaths`
+WHERE continent is not null
+ORDER BY 1,2
+
+--Creating a temp table to create view
+DROP table if exists #PercentPopulationVaccinated
+Create Temp Table #PercentPopulationVaccinated
+(
+  Continent nvarchar(255),
+  Location nvarchar(255),
+  Date datetime,
+  Population numeric,
+  New_Vaccinations numeric,
+  RollingPeopleVaccinated numeric
+  )
+Insert into #PercentPopulationVaccinated
+Select dea.Continent, dea.Location, dea.Date, dea.Population, vac.New_Vaccinations,
+  SUM(CONVERT(int, vac.New_Vaccinations)) OVER (partition by dea.Location ORDER BY dea.Location, dea.Date) as RollingPeopleVaccinated
+  FROM Covid19.CovidDeaths dea
+  JOIN Covid19.CovidVaccinations vac
+  ON dea.Location = vac.Location
+  AND dea.Date = vac.date
+  WHERE dea.Continent is not null
+
+  SELECT *, (RollingPeopleVaccinated/Population)*100
+  FROM #PercentPopulationVaccinated
+
+  --Creating a world map view
+CREATE VIEW PercentagePopulationVaccinated as
+Select dea.Continent, dea.Location, dea.Date, dea.Population, vac.New_Vaccinations,
+  SUM(CONVERT(int, vac.New_Vaccinations)) OVER (partition by dea.Location ORDER BY dea.Location, dea.Date) as RollingPeopleVaccinated
+  FROM Covid19.CovidDeaths dea
+  JOIN Covid19.CovidVaccinations vac
+  ON dea.Location = vac.Location
+  AND dea.Date = vac.date
+CREATE OR REPLACE EXTERNAL TABLE
